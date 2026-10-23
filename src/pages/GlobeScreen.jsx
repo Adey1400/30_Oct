@@ -9,25 +9,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RoseFull, RoseBud, FlowerDivider } from "../components/RoseSVG";
 import TypewriterText from "../components/TypewriterText";
 
-// ── Colour palette (matches existing site) ────────────────────
-const C = {
-  ivory:      "#F7F0E4",
-  parchment:  "#E8D7BD",
-  burgundy:   "#51191F",
-  red:        "#7B2027",
-  brown:      "#B49A7C",
-  sepia:      "#49362C",
-  ocean:      "#6B93A8",
-  land:       "#C8B882",
-  landDark:   "#A89660",
-  border:     "#8B7355",
-};
-
 // ── Discovery data ─────────────────────────────────────────────
 const DISCOVERIES = [
   {
     id: 0,
     title: "The Land of Memories",
+    emoji: "🌸",
     lat: 28,
     lon: -30,
     message:
@@ -36,6 +23,7 @@ const DISCOVERIES = [
   {
     id: 1,
     title: "The Land of Dreams",
+    emoji: "✨",
     lat: -20,
     lon: 115,
     message:
@@ -44,6 +32,7 @@ const DISCOVERIES = [
   {
     id: 2,
     title: "The Land of Possibilities",
+    emoji: "🌿",
     lat: 55,
     lon: 75,
     message:
@@ -51,31 +40,7 @@ const DISCOVERIES = [
   },
 ];
 
-// ── Globe geometry helpers ─────────────────────────────────────
-
-function project(lat, lon, rotY, rotX, cx, cy, r) {
-  const phi = (lat * Math.PI) / 180;
-  const lam = (lon * Math.PI) / 180;
-  const rY = (rotY * Math.PI) / 180;
-  const rX = (rotX * Math.PI) / 180;
-
-  let x0 = Math.cos(phi) * Math.cos(lam);
-  let y0 = Math.sin(phi);
-  let z0 = Math.cos(phi) * Math.sin(lam);
-
-  // Rotate around Y axis (spin)
-  const x1 = x0 * Math.cos(rY) + z0 * Math.sin(rY);
-  const z1 = -x0 * Math.sin(rY) + z0 * Math.cos(rY);
-
-  // Rotate around X axis (tilt)
-  const y2 = y0 * Math.cos(rX) - z1 * Math.sin(rX);
-  const z2 = y0 * Math.sin(rX) + z1 * Math.cos(rX);
-
-  const visible = x1 > -0.05;
-  return { x: cx + x1 * r, y: cy - y2 * r, z: z2, visible };
-}
-
-// Simplified continent polygons [lat, lon]
+// ── Continent outlines ─────────────────────────────────────────
 const CONTINENTS = [
   // North America
   [[72,-140],[70,-95],[68,-77],[60,-65],[47,-53],[44,-66],[41,-70],[25,-80],[21,-87],[10,-83],[8,-77],[9,-79],[19,-90],[23,-106],[23,-110],[30,-115],[32,-117],[37,-122],[48,-124],[55,-132],[60,-142],[65,-168],[68,-166],[72,-160],[72,-140]],
@@ -95,12 +60,35 @@ const CONTINENTS = [
   [[-70,0],[-68,45],[-70,90],[-68,135],[-70,180],[-68,-135],[-70,-90],[-68,-45],[-70,0]],
 ];
 
-// ── Canvas Globe ───────────────────────────────────────────────
-function GlobeCanvas({ size, rotY, rotX, discoveries, completedIds, activeMarkerId }) {
+// ── 3-D → 2-D projection ──────────────────────────────────────
+function project(lat, lon, rotY, rotX, cx, cy, r) {
+  const phi = (lat * Math.PI) / 180;
+  const lam = (lon * Math.PI) / 180;
+  const rY  = (rotY * Math.PI) / 180;
+  const rX  = (rotX * Math.PI) / 180;
+
+  const x0 = Math.cos(phi) * Math.cos(lam);
+  const y0 = Math.sin(phi);
+  const z0 = Math.cos(phi) * Math.sin(lam);
+
+  // Spin (Y)
+  const x1 =  x0 * Math.cos(rY) + z0 * Math.sin(rY);
+  const z1 = -x0 * Math.sin(rY) + z0 * Math.cos(rY);
+
+  // Tilt (X)
+  const y2 = y0 * Math.cos(rX) - z1 * Math.sin(rX);
+
+  return {
+    x: cx + x1 * r,
+    y: cy - y2 * r,
+    visible: x1 > -0.04,
+  };
+}
+
+// ── Canvas globe component ─────────────────────────────────────
+function GlobeCanvas({ size, rotY, rotX, completedIds, activeMarkerId, pulsePhase }) {
   const canvasRef = useRef(null);
-  const cx = size / 2;
-  const cy = size / 2;
-  const r  = size * 0.44;
+  const cx = size / 2, cy = size / 2, r = size * 0.44;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -108,30 +96,30 @@ function GlobeCanvas({ size, rotY, rotX, discoveries, completedIds, activeMarker
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, size, size);
 
-    // Clip to sphere
+    // ── Clip to sphere ──
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
 
-    // Ocean
-    const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.05, cx, cy, r);
-    grad.addColorStop(0,   "#7AAFC0");
-    grad.addColorStop(0.6, "#6B93A8");
-    grad.addColorStop(1,   "#3D6070");
-    ctx.fillStyle = grad;
-    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    // Ocean gradient
+    const ocean = ctx.createRadialGradient(cx - r * 0.28, cy - r * 0.28, r * 0.05, cx, cy, r);
+    ocean.addColorStop(0,   "#7FBCD2");
+    ocean.addColorStop(0.55,"#6B93A8");
+    ocean.addColorStop(1,   "#3A5F72");
+    ctx.fillStyle = ocean;
+    ctx.fillRect(cx - r - 1, cy - r - 1, r * 2 + 2, r * 2 + 2);
 
-    // Grid lines
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 0.5;
+    // Latitude lines
+    ctx.strokeStyle = "rgba(255,255,255,0.07)";
+    ctx.lineWidth = 0.6;
     for (let lat = -60; lat <= 60; lat += 30) {
       const phi = (lat * Math.PI) / 180;
       const rX2 = (rotX * Math.PI) / 180;
-      const yr = cy - Math.sin(phi) * r;
+      const yr  = cy - Math.sin(phi) * r;
       const rxE = Math.cos(phi) * r;
-      const ryE = Math.cos(phi) * r * Math.abs(Math.cos(rX2));
-      if (rxE > 1) {
+      const ryE = rxE * Math.abs(Math.cos(rX2));
+      if (rxE > 2) {
         ctx.beginPath();
         ctx.ellipse(cx, yr, rxE, ryE, 0, 0, Math.PI * 2);
         ctx.stroke();
@@ -149,79 +137,118 @@ function GlobeCanvas({ size, rotY, rotX, discoveries, completedIds, activeMarker
         else ctx.lineTo(p.x, p.y);
       }
       ctx.closePath();
-      ctx.fillStyle = "#C8B882";
+      ctx.fillStyle = "#CAB98A";
       ctx.fill();
-      ctx.strokeStyle = "#8B7355";
-      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = "#8B7040";
+      ctx.lineWidth = 0.7;
       ctx.stroke();
     }
 
-    // Sheen
-    const sheenGrad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, 0, cx - r * 0.35, cy - r * 0.35, r * 0.65);
-    sheenGrad.addColorStop(0,   "rgba(255,255,255,0.2)");
-    sheenGrad.addColorStop(0.6, "rgba(255,255,255,0.04)");
-    sheenGrad.addColorStop(1,   "rgba(255,255,255,0)");
-    ctx.fillStyle = sheenGrad;
-    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    // Top-left sheen
+    const sheen = ctx.createRadialGradient(cx - r * 0.33, cy - r * 0.33, 0, cx - r * 0.33, cy - r * 0.33, r * 0.68);
+    sheen.addColorStop(0, "rgba(255,255,255,0.22)");
+    sheen.addColorStop(0.55, "rgba(255,255,255,0.04)");
+    sheen.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = sheen;
+    ctx.fillRect(cx - r - 1, cy - r - 1, r * 2 + 2, r * 2 + 2);
 
-    ctx.restore();
+    ctx.restore(); // end clip
 
-    // Rim glow (outside clip)
-    const rimGrad = ctx.createRadialGradient(cx, cy, r * 0.82, cx, cy, r + 1);
-    rimGrad.addColorStop(0,   "rgba(81,25,31,0)");
-    rimGrad.addColorStop(0.8, "rgba(81,25,31,0.12)");
-    rimGrad.addColorStop(1,   "rgba(81,25,31,0.4)");
+    // Rim shadow
+    const rim = ctx.createRadialGradient(cx, cy, r * 0.80, cx, cy, r + 2);
+    rim.addColorStop(0, "rgba(40,10,10,0)");
+    rim.addColorStop(0.75, "rgba(40,10,10,0.14)");
+    rim.addColorStop(1, "rgba(40,10,10,0.45)");
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = rimGrad;
+    ctx.fillStyle = rim;
     ctx.fill();
 
-    // Border
+    // Border ring
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(180,154,124,0.6)";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(180,154,124,0.65)";
+    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Markers
-    for (const d of discoveries) {
+    // ── Markers ──
+    for (const d of DISCOVERIES) {
       const p = project(d.lat, d.lon, rotY, rotX, cx, cy, r);
       if (!p.visible) continue;
 
       const isActive    = activeMarkerId === d.id;
       const isCompleted = completedIds.has(d.id);
-      const pinColor    = isActive ? "#C44050" : "#7B2027";
+      const pinH        = p.y;  // centre of pin head
+      const pinC        = pinH - 8; // top of head
 
-      // Pulse halo
+      // Animated pulse ring (uses pulsePhase 0→1)
+      const pulse = 0.5 + 0.5 * Math.sin(pulsePhase * Math.PI * 2);
+      const haloR = isActive ? 18 : 12 + pulse * 5;
+      const haloA = isActive ? 0.35 : 0.12 + pulse * 0.08;
       ctx.beginPath();
-      ctx.arc(p.x, p.y - 5, isActive ? 14 : 10, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(123,32,39,${isActive ? 0.3 : 0.18})`;
+      ctx.arc(p.x, pinC, haloR, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(196,64,80,${haloA})`;
       ctx.fill();
 
-      // Pin head
+      // Second ring for active
+      if (isActive) {
+        ctx.beginPath();
+        ctx.arc(p.x, pinC, 24, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(196,64,80,0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Pin teardrop shadow
       ctx.beginPath();
-      ctx.arc(p.x, p.y - 5, 6, 0, Math.PI * 2);
-      ctx.fillStyle = pinColor;
+      ctx.arc(p.x + 1.5, pinC + 1.5, 9, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,0,0,0.18)";
       ctx.fill();
-      ctx.strokeStyle = "#F7F0E4";
-      ctx.lineWidth = 1.2;
+
+      // Pin head gradient
+      const pinGrad = ctx.createRadialGradient(p.x - 2.5, pinC - 2.5, 1, p.x, pinC, 9);
+      pinGrad.addColorStop(0, isActive ? "#E85070" : "#9B2832");
+      pinGrad.addColorStop(0.6, isActive ? "#C44050" : "#7B2027");
+      pinGrad.addColorStop(1, isActive ? "#8B2035" : "#51191F");
+      ctx.beginPath();
+      ctx.arc(p.x, pinC, 9, 0, Math.PI * 2);
+      ctx.fillStyle = pinGrad;
+      ctx.fill();
+
+      // Pin head border
+      ctx.beginPath();
+      ctx.arc(p.x, pinC, 9, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(247,240,228,0.7)";
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Pin tail
+      // Pin tail (teardrop point)
       ctx.beginPath();
-      ctx.moveTo(p.x - 3.5, p.y - 1);
-      ctx.lineTo(p.x, p.y + 7);
-      ctx.lineTo(p.x + 3.5, p.y - 1);
-      ctx.fillStyle = pinColor;
+      ctx.moveTo(p.x - 5, pinC + 5);
+      ctx.lineTo(p.x,     pinH + 4);
+      ctx.lineTo(p.x + 5, pinC + 5);
+      ctx.fillStyle = isActive ? "#C44050" : "#7B2027";
       ctx.fill();
 
-      // Inner dot
+      // Inner shine dot
       ctx.beginPath();
-      ctx.arc(p.x, p.y - 5, 2, 0, Math.PI * 2);
-      ctx.fillStyle = isCompleted ? "#F7F0E4" : "rgba(255,255,255,0.7)";
+      ctx.arc(p.x - 2.5, pinC - 2.5, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.fill();
+
+      // Completed checkmark or rose dot
+      if (isCompleted) {
+        ctx.beginPath();
+        ctx.arc(p.x, pinC, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(247,240,228,0.9)";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(p.x, pinC, 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#7B2027";
+        ctx.fill();
+      }
     }
-  }, [size, rotY, rotX, discoveries, completedIds, activeMarkerId, cx, cy, r]);
+  }, [size, rotY, rotX, completedIds, activeMarkerId, pulsePhase, cx, cy, r]);
 
   return (
     <canvas
@@ -229,80 +256,173 @@ function GlobeCanvas({ size, rotY, rotX, discoveries, completedIds, activeMarker
       width={size}
       height={size}
       style={{ display: "block" }}
-      aria-label="Interactive antique globe"
+      aria-hidden="true"
     />
   );
 }
 
-// ── Parchment card ─────────────────────────────────────────────
-function DiscoveryCard({ discovery, onClose }) {
+// ── Full-screen modal discovery card ──────────────────────────
+function DiscoveryModal({ discovery, onClose }) {
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 12, scale: 0.97 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="paper-grain"
+      key="modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      onClick={onClose}
       style={{
-        background: "#E8D7BD",
-        border: "1px solid rgba(180,154,124,0.5)",
-        borderRadius: "2px",
-        boxShadow: "0 12px 48px rgba(81,25,31,0.22), inset 0 0 40px rgba(180,154,124,0.12)",
-        padding: "28px 24px 24px",
-        position: "relative",
-        width: "100%",
-        maxWidth: "340px",
-        margin: "0 auto",
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        background: "rgba(49,21,14,0.65)",
+        backdropFilter: "blur(3px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px 16px",
       }}
     >
-      <div className="text-center mb-3" aria-hidden="true">
-        <span style={{ color: "#7B2027", fontSize: "10px", letterSpacing: "0.3em", opacity: 0.6 }}>✦ ✦ ✦</span>
-      </div>
-      <div className="flex justify-center mb-3">
-        <RoseBud size={32} />
-      </div>
-      <h3 className="text-center mb-3" style={{
-        fontFamily: "'Playfair Display', Georgia, serif",
-        fontSize: "1.1rem", fontStyle: "italic",
-        color: "#51191F", fontWeight: 600,
-      }}>
-        {discovery.title}
-      </h3>
-      <div className="flex items-center gap-2 mb-4" aria-hidden="true">
-        <div className="h-px flex-1" style={{ background: "#B49A7C", opacity: 0.4 }} />
-        <span style={{ color: "#7B2027", fontSize: "8px" }}>✦</span>
-        <div className="h-px flex-1" style={{ background: "#B49A7C", opacity: 0.4 }} />
-      </div>
-      <motion.p
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        transition={{ delay: 0.25, duration: 0.7 }}
-        className="text-center"
+      {/* Card — stop propagation so clicking card doesn't dismiss */}
+      <motion.div
+        key="modal-card"
+        initial={{ opacity: 0, scale: 0.85, y: 40 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className="paper-grain"
         style={{
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: "1rem", lineHeight: 1.8,
-          color: "#49362C", fontStyle: "italic",
+          background: "#EDE0C4",
+          borderRadius: "3px",
+          border: "1px solid rgba(180,154,124,0.55)",
+          boxShadow:
+            "0 24px 80px rgba(49,21,14,0.5), 0 4px 16px rgba(0,0,0,0.2), inset 0 0 60px rgba(180,154,124,0.08)",
+          padding: "36px 28px 30px",
+          width: "100%",
+          maxWidth: "340px",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {discovery.message}
-      </motion.p>
-      <div className="text-center mt-4 mb-4" aria-hidden="true">
-        <span style={{ color: "#7B2027", fontSize: "10px", letterSpacing: "0.3em", opacity: 0.6 }}>✦ ✦ ✦</span>
-      </div>
-      <div className="flex justify-center">
-        <button
-          onClick={onClose}
-          style={{
-            background: "transparent", border: "1px solid #7B2027",
-            borderRadius: "1px", padding: "6px 20px",
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: "0.85rem", color: "#51191F",
-            letterSpacing: "0.05em", cursor: "pointer",
-          }}
-          aria-label="Close discovery card"
+        {/* Double border frame */}
+        <div style={{ position:"absolute", inset: 10, border:"0.5px solid rgba(81,25,31,0.18)", borderRadius:"2px", pointerEvents:"none" }} aria-hidden="true" />
+        <div style={{ position:"absolute", inset: 14, border:"0.5px solid rgba(81,25,31,0.08)", borderRadius:"2px", pointerEvents:"none" }} aria-hidden="true" />
+
+        {/* Corner ornaments */}
+        {[
+          { top: 6, left: 6 },
+          { top: 6, right: 6 },
+          { bottom: 6, left: 6, transform: "scaleY(-1)" },
+          { bottom: 6, right: 6, transform: "scale(-1,-1)" },
+        ].map((s, i) => (
+          <div key={i} style={{ position:"absolute", ...s, pointerEvents:"none", opacity:0.35 }} aria-hidden="true">
+            <svg width={16} height={16} viewBox="0 0 20 20">
+              <path d="M2 2 L8 2 L2 8 Z" fill="#7B2027" />
+            </svg>
+          </div>
+        ))}
+
+        {/* Top ornament */}
+        <div className="text-center mb-3" aria-hidden="true">
+          <span style={{ color:"#7B2027", fontSize:"10px", letterSpacing:"0.35em", opacity:0.55 }}>✦ ✦ ✦</span>
+        </div>
+
+        {/* Rose */}
+        <motion.div
+          className="flex justify-center mb-4"
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.15, duration: 0.5, ease: "backOut" }}
         >
-          close ✕
-        </button>
-      </div>
+          <RoseBud size={40} />
+        </motion.div>
+
+        {/* Title */}
+        <motion.h3
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="text-center mb-1"
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: "1.15rem",
+            fontStyle: "italic",
+            color: "#51191F",
+            fontWeight: 700,
+            lineHeight: 1.3,
+          }}
+        >
+          {discovery.title}
+        </motion.h3>
+
+        {/* Divider */}
+        <motion.div
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+          className="flex items-center gap-2 my-4"
+          aria-hidden="true"
+        >
+          <div className="h-px flex-1" style={{ background:"#B49A7C", opacity:0.45 }} />
+          <span style={{ color:"#7B2027", fontSize:"9px" }}>✦</span>
+          <div className="h-px flex-1" style={{ background:"#B49A7C", opacity:0.45 }} />
+        </motion.div>
+
+        {/* Message */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.38, duration: 0.7 }}
+          className="text-center"
+          style={{
+            fontFamily: "'EB Garamond', Georgia, serif",
+            fontSize: "1.05rem",
+            lineHeight: 1.85,
+            color: "#49362C",
+            fontStyle: "italic",
+          }}
+        >
+          {discovery.message}
+        </motion.p>
+
+        {/* Bottom ornament */}
+        <div className="text-center mt-5 mb-5" aria-hidden="true">
+          <span style={{ color:"#7B2027", fontSize:"10px", letterSpacing:"0.35em", opacity:0.55 }}>✦ ✦ ✦</span>
+        </div>
+
+        {/* Close button */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+          className="flex justify-center"
+        >
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "1.5px solid #7B2027",
+              borderRadius: "1px",
+              padding: "8px 28px",
+              fontFamily: "'Cormorant Garamond', Georgia, serif",
+              fontSize: "0.9rem",
+              color: "#51191F",
+              letterSpacing: "0.06em",
+              cursor: "pointer",
+            }}
+            aria-label="Close message"
+          >
+            close ✕
+          </button>
+        </motion.div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -310,7 +430,7 @@ function DiscoveryCard({ discovery, onClose }) {
 // ── Rose progress icon ─────────────────────────────────────────
 function RoseIcon({ filled }) {
   return (
-    <svg viewBox="0 0 32 32" width={22} height={22} aria-hidden="true">
+    <svg viewBox="0 0 32 32" width={24} height={24} aria-hidden="true">
       {filled ? (
         <>
           <ellipse cx="16" cy="14" rx="9" ry="11" fill="#7B2027" opacity="0.9" />
@@ -323,11 +443,11 @@ function RoseIcon({ filled }) {
         </>
       ) : (
         <>
-          <ellipse cx="16" cy="14" rx="9" ry="11" fill="none" stroke="#B49A7C" strokeWidth="1.2" opacity="0.6" />
-          <ellipse cx="16" cy="13" rx="7" ry="9" fill="none" stroke="#B49A7C" strokeWidth="0.8" opacity="0.4" />
-          <circle  cx="16" cy="11" r="3" fill="none" stroke="#B49A7C" strokeWidth="0.8" opacity="0.4" />
-          <path d="M16 25 Q15 20 14 15" stroke="#5C7A3E" strokeWidth="1.2" fill="none" strokeLinecap="round" opacity="0.5" />
-          <path d="M15 19 Q10 17 9 13 Q14 14 15 19Z" fill="#6A8A4A" opacity="0.4" />
+          <ellipse cx="16" cy="14" rx="9" ry="11" fill="none" stroke="#B49A7C" strokeWidth="1.3" opacity="0.55" />
+          <ellipse cx="16" cy="13" rx="7" ry="9"  fill="none" stroke="#B49A7C" strokeWidth="0.8" opacity="0.35" />
+          <circle  cx="16" cy="11" r="3"           fill="none" stroke="#B49A7C" strokeWidth="0.8" opacity="0.35" />
+          <path d="M16 25 Q15 20 14 15" stroke="#5C7A3E" strokeWidth="1.2" fill="none" strokeLinecap="round" opacity="0.45" />
+          <path d="M15 19 Q10 17 9 13 Q14 14 15 19Z" fill="#6A8A4A" opacity="0.35" />
         </>
       )}
     </svg>
@@ -337,17 +457,17 @@ function RoseIcon({ filled }) {
 // ── Final surprise ─────────────────────────────────────────────
 function FinalSurprise({ onResetView }) {
   const [startTw, setStartTw] = useState(false);
-  const [twDone, setTwDone]   = useState(false);
+  const [twDone,  setTwDone]  = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setStartTw(true), 700);
+    const t = setTimeout(() => setStartTw(true), 800);
     return () => clearTimeout(t);
   }, []);
 
   const finalText =
     "Wherever this beautiful world takes you, I hope happiness finds its way to you.\n\n" +
     "May this new chapter bring you wonderful adventures, beautiful memories, and everything your heart wishes for.\n\n" +
-    "Happy Birthday. \u2661";
+    "Happy Birthday. ♡";
 
   return (
     <motion.div
@@ -356,24 +476,20 @@ function FinalSurprise({ onResetView }) {
       transition={{ duration: 0.9, ease: "easeOut" }}
       className="paper-grain"
       style={{
-        background: "#E8D7BD",
-        border: "1px solid rgba(180,154,124,0.4)",
-        borderRadius: "2px",
-        boxShadow: "0 16px 60px rgba(81,25,31,0.2), inset 0 0 50px rgba(180,154,124,0.1)",
-        padding: "32px 24px 28px",
+        background: "#EDE0C4",
+        border: "1px solid rgba(180,154,124,0.42)",
+        borderRadius: "3px",
+        boxShadow: "0 16px 60px rgba(81,25,31,0.2), inset 0 0 50px rgba(180,154,124,0.08)",
+        padding: "36px 26px 30px",
         width: "100%", maxWidth: "340px",
         margin: "0 auto", position: "relative",
       }}
     >
-      <div style={{
-        position: "absolute", inset: 8,
-        border: "0.5px solid rgba(81,25,31,0.15)",
-        borderRadius: "1px", pointerEvents: "none",
-      }} aria-hidden="true" />
+      <div style={{ position:"absolute", inset:10, border:"0.5px solid rgba(81,25,31,0.14)", borderRadius:"2px", pointerEvents:"none" }} aria-hidden="true" />
 
-      <p className="text-center mb-4" style={{
-        fontFamily: "'Dancing Script', cursive",
-        color: "#B49A7C", fontSize: "0.85rem", letterSpacing: "0.08em",
+      <p className="text-center mb-5" style={{
+        fontFamily:"'Dancing Script', cursive",
+        color:"#B49A7C", fontSize:"0.85rem", letterSpacing:"0.09em",
       }}>
         — a final note —
       </p>
@@ -383,80 +499,115 @@ function FinalSurprise({ onResetView }) {
         animate={{ rotate: [0, 3, -3, 0] }}
         transition={{ repeat: Infinity, duration: 10, ease: "easeInOut" }}
       >
-        <RoseFull size={88} />
+        <RoseFull size={92} />
       </motion.div>
 
-      <div className="mb-6" style={{ minHeight: "120px" }}>
+      <div className="mb-6" style={{ minHeight: "130px" }}>
         {startTw && (
           <TypewriterText
             text={finalText}
-            speed={28}
+            speed={26}
             onComplete={() => setTwDone(true)}
             className="text-center"
             style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: "1rem", lineHeight: 1.85,
-              color: "#49362C", fontStyle: "italic",
+              fontFamily:"'Cormorant Garamond', Georgia, serif",
+              fontSize:"1rem", lineHeight:1.88,
+              color:"#49362C", fontStyle:"italic",
             }}
           />
         )}
       </div>
 
       <div className="flex items-center gap-2 mb-5" aria-hidden="true">
-        <div className="h-px flex-1" style={{ background: "#B49A7C", opacity: 0.4 }} />
-        <span style={{ color: "#7B2027", fontSize: "8px" }}>✦</span>
-        <div className="h-px flex-1" style={{ background: "#B49A7C", opacity: 0.4 }} />
+        <div className="h-px flex-1" style={{ background:"#B49A7C", opacity:0.4 }} />
+        <span style={{ color:"#7B2027", fontSize:"9px" }}>✦</span>
+        <div className="h-px flex-1" style={{ background:"#B49A7C", opacity:0.4 }} />
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={twDone ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.6 }}
+        initial={{ opacity:0, y:8 }}
+        animate={twDone ? { opacity:1, y:0 } : {}}
+        transition={{ duration:0.6 }}
         className="flex justify-center"
       >
         <button
           onClick={onResetView}
           style={{
-            background: "transparent", border: "1.5px solid #7B2027",
-            borderRadius: "1px", padding: "8px 22px",
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: "0.9rem", color: "#51191F",
-            letterSpacing: "0.05em", cursor: "pointer",
+            background:"transparent", border:"1.5px solid #7B2027",
+            borderRadius:"1px", padding:"9px 24px",
+            fontFamily:"'Cormorant Garamond', Georgia, serif",
+            fontSize:"0.9rem", color:"#51191F",
+            letterSpacing:"0.06em", cursor:"pointer",
           }}
           aria-label="Explore the globe again"
         >
-          Explore the globe again \u21BA
+          Explore the globe again ↺
         </button>
       </motion.div>
     </motion.div>
   );
 }
 
+// ── Tap hint ripple (shows once on first load) ─────────────────
+function TapHint() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => { const t = setTimeout(() => setVisible(false), 4000); return () => clearTimeout(t); }, []);
+  if (!visible) return null;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      className="flex items-center justify-center gap-2 mt-3"
+      aria-live="polite"
+    >
+      <motion.span
+        animate={{ scale: [1, 1.3, 1] }}
+        transition={{ repeat: Infinity, duration: 1.4 }}
+        style={{ fontSize: "1rem", lineHeight: 1 }}
+      >
+        👆
+      </motion.span>
+      <span style={{
+        fontFamily: "'Dancing Script', cursive",
+        color: "#B49A7C", fontSize: "0.82rem", fontStyle: "italic",
+      }}>
+        Tap a glowing pin to reveal a message
+      </span>
+    </motion.div>
+  );
+}
+
 // ── Main GlobeScreen ───────────────────────────────────────────
 export default function GlobeScreen() {
-  const [rotY, setRotY] = useState(0);
-  const [rotX, setRotX] = useState(-15);
+  /* ── rotation state ── */
+  const rotYRef = useRef(0);
+  const rotXRef = useRef(-15);
+  const [rotSnapshot, setRotSnapshot] = useState({ y: 0, x: -15 });
 
-  const dragRef   = useRef({ active: false, lastX: 0, lastY: 0 });
-  const velRef    = useRef({ vx: 0, vy: 0 });
-  const rafRef    = useRef(null);
-  const idleRef   = useRef(null);
-  const isIdleRef = useRef(true);
+  /* ── drag state ── */
+  const dragRef      = useRef({ active: false, lastX: 0, lastY: 0, moved: false });
+  const velRef       = useRef({ vx: 0, vy: 0 });
+  const rafRef       = useRef(null);
+  const idleRef      = useRef(null);
+  const isIdleRef    = useRef(true);
+  const containerRef = useRef(null);
 
+  /* ── ui state ── */
   const [activeMarkerId, setActiveMarkerId] = useState(null);
   const [completedIds, setCompletedIds]     = useState(new Set());
   const [showFinal, setShowFinal]           = useState(false);
   const [finalTriggered, setFinalTriggered] = useState(false);
+  const [globeSize, setGlobeSize]           = useState(300);
+  const [pulsePhase, setPulsePhase]         = useState(0);
 
-  const [globeSize, setGlobeSize] = useState(300);
-  const containerRef = useRef(null);
-
-  // Measure container width
+  /* ── responsive sizing ── */
   useEffect(() => {
     function measure() {
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
-      setGlobeSize(Math.min(Math.max(w - 32, 240), 340));
+      setGlobeSize(Math.min(Math.max(w - 40, 240), 340));
     }
     measure();
     const ro = new ResizeObserver(measure);
@@ -464,74 +615,138 @@ export default function GlobeScreen() {
     return () => ro.disconnect();
   }, []);
 
-  // Idle auto-rotation
+  /* ── pulse animation (independent of rotation RAF) ── */
+  useEffect(() => {
+    let frame = 0;
+    let id;
+    const tick = () => {
+      frame++;
+      setPulsePhase((frame % 60) / 60);
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  /* ── snapshot helper (triggers re-render) ── */
+  const commit = useCallback(() => {
+    setRotSnapshot({ y: rotYRef.current, x: rotXRef.current });
+  }, []);
+
+  /* ── idle auto-rotation ── */
   const startIdle = useCallback(() => {
-    if (rafRef.current) return;
-    isIdleRef.current = true;
+    if (!isIdleRef.current) return;
     const step = () => {
       if (!isIdleRef.current) return;
-      setRotY((y) => (y + 0.18) % 360);
+      rotYRef.current = (rotYRef.current + 0.18) % 360;
+      commit();
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
-  }, []);
+  }, [commit]);
 
   const stopIdle = useCallback(() => {
     isIdleRef.current = false;
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-    if (idleRef.current) { clearTimeout(idleRef.current); idleRef.current = null; }
+    if (idleRef.current)  { clearTimeout(idleRef.current); idleRef.current = null; }
   }, []);
 
   const scheduleIdle = useCallback(() => {
     if (idleRef.current) clearTimeout(idleRef.current);
-    idleRef.current = setTimeout(startIdle, 2000);
+    idleRef.current = setTimeout(() => {
+      isIdleRef.current = true;
+      startIdle();
+    }, 2200);
   }, [startIdle]);
 
-  useEffect(() => { startIdle(); return () => stopIdle(); }, [startIdle, stopIdle]);
+  useEffect(() => {
+    isIdleRef.current = true;
+    startIdle();
+    return () => stopIdle();
+  }, [startIdle, stopIdle]);
 
-  // Inertia
+  /* ── inertia after drag ── */
   const startInertia = useCallback(() => {
     const step = () => {
       const { vx, vy } = velRef.current;
-      if (Math.abs(vx) < 0.05 && Math.abs(vy) < 0.05) { scheduleIdle(); return; }
-      setRotY((y) => y + vx);
-      setRotX((x) => Math.max(-40, Math.min(40, x + vy)));
-      velRef.current.vx *= 0.94;
-      velRef.current.vy *= 0.94;
+      if (Math.abs(vx) < 0.04 && Math.abs(vy) < 0.04) {
+        scheduleIdle();
+        return;
+      }
+      rotYRef.current += vx;
+      rotXRef.current = Math.max(-40, Math.min(40, rotXRef.current + vy));
+      velRef.current.vx *= 0.93;
+      velRef.current.vy *= 0.93;
+      commit();
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
-  }, [scheduleIdle]);
+  }, [scheduleIdle, commit]);
 
-  // Pointer handlers
+  /* ── pointer down ── */
   const onPointerDown = useCallback((e) => {
     stopIdle();
-    dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    dragRef.current = { active: true, lastX: e.clientX, lastY: e.clientY, moved: false };
     velRef.current  = { vx: 0, vy: 0 };
     e.currentTarget.setPointerCapture(e.pointerId);
   }, [stopIdle]);
 
+  /* ── pointer move ── */
   const onPointerMove = useCallback((e) => {
     if (!dragRef.current.active) return;
     const dx = e.clientX - dragRef.current.lastX;
     const dy = e.clientY - dragRef.current.lastY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragRef.current.moved = true;
     dragRef.current.lastX = e.clientX;
     dragRef.current.lastY = e.clientY;
-    const s = 0.4;
-    const dY = dx * s, dX = dy * s;
-    setRotY((y) => y + dY);
-    setRotX((x) => Math.max(-40, Math.min(40, x + dX)));
-    velRef.current = { vx: dY * 0.6, vy: dX * 0.6 };
-  }, []);
+    const sensitivity = 0.42;
+    const dY = dx * sensitivity;
+    const dX = dy * sensitivity;
+    rotYRef.current += dY;
+    rotXRef.current = Math.max(-40, Math.min(40, rotXRef.current + dX));
+    velRef.current  = { vx: dY * 0.55, vy: dX * 0.55 };
+    commit();
+  }, [commit]);
 
-  const onPointerUp = useCallback(() => {
+  /* ── pointer up ── */
+  const onPointerUp = useCallback((e) => {
     if (!dragRef.current.active) return;
+    const wasDrag = dragRef.current.moved;
     dragRef.current.active = false;
+
+    if (!wasDrag) {
+      // It was a tap — check marker hit
+      const canvas = e.currentTarget.querySelector("canvas");
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const cxG = globeSize / 2, cyG = globeSize / 2, rG = globeSize * 0.44;
+
+      let hit = null;
+      // Check against pin HEAD position (y - 8 offset for head centre)
+      for (const d of DISCOVERIES) {
+        const p = project(d.lat, d.lon, rotYRef.current, rotXRef.current, cxG, cyG, rG);
+        if (!p.visible) continue;
+        const headCy = p.y - 8;
+        const dist   = Math.hypot(px - p.x, py - headCy);
+        if (dist < 22) { hit = d; break; }
+      }
+      if (hit) {
+        setActiveMarkerId(hit.id);
+        setCompletedIds((prev) => { const n = new Set(prev); n.add(hit.id); return n; });
+      }
+      // Don't start inertia for taps
+      scheduleIdle();
+      return;
+    }
+
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     startInertia();
-  }, [startInertia]);
+  }, [globeSize, startInertia, scheduleIdle]);
 
-  // Prevent page scroll during touch drag
+  /* ── prevent page scroll while dragging ── */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -540,194 +755,207 @@ export default function GlobeScreen() {
     return () => el.removeEventListener("touchmove", prevent);
   }, []);
 
-  // Marker hit detection
-  const cx = globeSize / 2, cy = globeSize / 2, r = globeSize * 0.44;
-
-  const handleGlobeClick = useCallback((e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-
-    let hit = null;
-    for (const d of DISCOVERIES) {
-      const p = project(d.lat, d.lon, rotY, rotX, cx, cy, r);
-      if (!p.visible) continue;
-      if (Math.hypot(px - p.x, py - (p.y - 5)) < 20) { hit = d; break; }
-    }
-    if (hit) {
-      setActiveMarkerId(hit.id);
-      setCompletedIds((prev) => { const n = new Set(prev); n.add(hit.id); return n; });
-    } else {
-      setActiveMarkerId(null);
-    }
-  }, [rotY, rotX, cx, cy, r]);
-
-  // Final reveal
+  /* ── final reveal when all 3 done ── */
   useEffect(() => {
     if (completedIds.size === 3 && !finalTriggered) {
       setFinalTriggered(true);
-      setTimeout(() => setShowFinal(true), 700);
+      setTimeout(() => setShowFinal(true), 800);
     }
   }, [completedIds, finalTriggered]);
 
   const activeDiscovery = useMemo(
-    () => DISCOVERIES.find((d) => d.id === activeMarkerId),
+    () => DISCOVERIES.find((d) => d.id === activeMarkerId) ?? null,
     [activeMarkerId]
   );
 
+  // ── render ──
   return (
     <motion.section
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.9 }}
-      className="relative w-full py-14 px-4 paper-grain"
+      className="relative w-full py-12 px-4 paper-grain"
       style={{ background: "#F7F0E4", minHeight: "100vh" }}
     >
       {/* Subtle petals */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
-        {[{ left: "10%", dur: 20, delay: 0 }, { left: "80%", dur: 25, delay: 9 }].map((p, i) => (
+        {[{ left:"9%", dur:20, delay:0 }, { left:"82%", dur:26, delay:10 }].map((p, i) => (
           <svg key={i} viewBox="0 0 30 40" style={{
-            position: "absolute", left: p.left, top: "-50px",
-            width: 13, height: 18,
-            animation: `floatDown ${p.dur}s ${p.delay}s linear infinite`,
+            position:"absolute", left:p.left, top:"-50px",
+            width:13, height:18,
+            animation:`floatDown ${p.dur}s ${p.delay}s linear infinite`,
           }} aria-hidden="true">
-            <ellipse cx="15" cy="20" rx="12" ry="18" fill="#C58D8B" opacity="0.45" />
+            <ellipse cx="15" cy="20" rx="12" ry="18" fill="#C58D8B" opacity="0.4" />
           </svg>
         ))}
       </div>
 
-      {/* Header */}
+      {/* ── Header ── */}
       <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
+        initial={{ opacity:0, y:14 }}
+        animate={{ opacity:1, y:0 }}
+        transition={{ duration:0.8, delay:0.2 }}
         className="text-center mb-2 px-4"
       >
-        <p style={{ fontFamily: "'Dancing Script', cursive", color: "#B49A7C", fontSize: "0.85rem", letterSpacing: "0.1em" }}>
+        <p style={{ fontFamily:"'Dancing Script', cursive", color:"#B49A7C", fontSize:"0.85rem", letterSpacing:"0.1em" }}>
           — an atlas, just for you —
         </p>
         <h2 style={{
-          fontFamily: "'Playfair Display', Georgia, serif",
-          fontSize: "clamp(1.45rem, 6vw, 1.85rem)",
-          fontStyle: "italic", color: "#49362C",
-          fontWeight: 600, marginTop: "6px", lineHeight: 1.3,
+          fontFamily:"'Playfair Display', Georgia, serif",
+          fontSize:"clamp(1.4rem, 6vw, 1.85rem)",
+          fontStyle:"italic", color:"#49362C",
+          fontWeight:700, marginTop:"6px", lineHeight:1.3,
         }}>
           A Little World, Just for You
         </h2>
         <p className="mt-3 mx-auto" style={{
-          fontFamily: "'EB Garamond', Georgia, serif",
-          fontSize: "0.95rem", color: "#B49A7C",
-          lineHeight: 1.7, maxWidth: "290px", fontStyle: "italic",
+          fontFamily:"'EB Garamond', Georgia, serif",
+          fontSize:"0.95rem", color:"#B49A7C",
+          lineHeight:1.7, maxWidth:"280px", fontStyle:"italic",
         }}>
           A little journey, a few hidden words, and something special waiting to be discovered.
         </p>
       </motion.div>
 
-      {/* Ornamental divider */}
+      {/* Divider */}
       <div className="flex items-center gap-2 max-w-xs mx-auto my-5" aria-hidden="true">
-        <div className="h-px flex-1" style={{ background: "#B49A7C", opacity: 0.35 }} />
+        <div className="h-px flex-1" style={{ background:"#B49A7C", opacity:0.3 }} />
         <RoseBud size={22} />
-        <div className="h-px flex-1" style={{ background: "#B49A7C", opacity: 0.35 }} />
+        <div className="h-px flex-1" style={{ background:"#B49A7C", opacity:0.3 }} />
       </div>
 
-      {/* Globe container */}
+      {/* ── Globe section ── */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.92 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1, delay: 0.45 }}
+        initial={{ opacity:0, scale:0.9 }}
+        animate={{ opacity:1, scale:1 }}
+        transition={{ duration:1, delay:0.45 }}
         className="flex flex-col items-center"
       >
-        <div ref={containerRef} style={{ width: "100%", maxWidth: "380px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div
+          ref={containerRef}
+          style={{ width:"100%", maxWidth:"380px", display:"flex", flexDirection:"column", alignItems:"center" }}
+        >
+          {/* Globe + stand */}
+          <div style={{ position:"relative", display:"inline-block" }}>
+            {/* Outer decorative rings */}
+            <div style={{ position:"absolute", inset:-10, borderRadius:"50%", border:"1.5px solid rgba(180,154,124,0.25)", pointerEvents:"none" }} aria-hidden="true" />
+            <div style={{ position:"absolute", inset:-18, borderRadius:"50%", border:"0.5px solid rgba(180,154,124,0.1)", pointerEvents:"none" }} aria-hidden="true" />
 
-          {/* Globe with stand */}
-          <div style={{ position: "relative", display: "inline-block" }}>
-            {/* Decorative ring */}
-            <div style={{ position: "absolute", inset: -9, borderRadius: "50%", border: "1.5px solid rgba(180,154,124,0.28)", pointerEvents: "none" }} aria-hidden="true" />
-            <div style={{ position: "absolute", inset: -16, borderRadius: "50%", border: "0.5px solid rgba(180,154,124,0.12)", pointerEvents: "none" }} aria-hidden="true" />
-
-            {/* Draggable globe */}
+            {/* Interactive globe div — ALL pointer events live here */}
             <div
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
-              onClick={handleGlobeClick}
               style={{
-                cursor: "grab", touchAction: "none", userSelect: "none",
+                cursor: "grab",
+                touchAction: "none",
+                userSelect: "none",
                 borderRadius: "50%",
-                boxShadow: "0 8px 40px rgba(81,25,31,0.18), 0 2px 8px rgba(0,0,0,0.12)",
+                boxShadow: "0 10px 50px rgba(81,25,31,0.22), 0 3px 10px rgba(0,0,0,0.14)",
               }}
+              aria-label="Interactive globe — drag to spin, tap a glowing red pin to read a message"
               role="button"
               tabIndex={0}
-              aria-label="Interactive globe — tap the red pins to discover messages"
-              onKeyDown={(e) => { if (e.key === "ArrowRight") setRotY((y) => y + 12); if (e.key === "ArrowLeft") setRotY((y) => y - 12); }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight") { rotYRef.current += 15; commit(); }
+                if (e.key === "ArrowLeft")  { rotYRef.current -= 15; commit(); }
+              }}
             >
               <GlobeCanvas
                 size={globeSize}
-                rotY={rotY}
-                rotX={rotX}
-                discoveries={DISCOVERIES}
+                rotY={rotSnapshot.y}
+                rotX={rotSnapshot.x}
                 completedIds={completedIds}
                 activeMarkerId={activeMarkerId}
+                pulsePhase={pulsePhase}
               />
             </div>
 
             {/* Brass stand */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "2px" }}>
-              <div style={{ width: 4, height: 22, background: "linear-gradient(180deg,#C8A84B,#A0802E,#C8A84B)", borderRadius: "2px" }} aria-hidden="true" />
-              <div style={{ width: globeSize * 0.5, height: 11, background: "linear-gradient(180deg,#D4AE52,#A0802E)", borderRadius: "6px 6px 4px 4px", boxShadow: "0 3px 10px rgba(0,0,0,0.18)" }} aria-hidden="true" />
-              <div style={{ width: globeSize * 0.34, height: 5, background: "linear-gradient(180deg,#A0802E,#7A6020)", borderRadius: "0 0 4px 4px" }} aria-hidden="true" />
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginTop:"2px" }}>
+              <div style={{ width:4, height:24, background:"linear-gradient(180deg,#D0AE50,#A0802E,#D0AE50)", borderRadius:"2px" }} aria-hidden="true" />
+              <div style={{ width:globeSize*0.52, height:12, background:"linear-gradient(180deg,#D8B450,#A58030)", borderRadius:"7px 7px 4px 4px", boxShadow:"0 3px 12px rgba(0,0,0,0.2)" }} aria-hidden="true" />
+              <div style={{ width:globeSize*0.36, height:5, background:"linear-gradient(180deg,#A58030,#7A6020)", borderRadius:"0 0 4px 4px" }} aria-hidden="true" />
             </div>
           </div>
 
-          {/* Instruction */}
+          {/* Instruction + tap hint */}
           <p className="text-center mt-5" style={{
-            fontFamily: "'Dancing Script', cursive",
-            color: "#B49A7C", fontSize: "0.9rem", fontStyle: "italic", letterSpacing: "0.02em",
+            fontFamily:"'Dancing Script', cursive",
+            color:"#B49A7C", fontSize:"0.9rem",
+            fontStyle:"italic", letterSpacing:"0.02em",
           }}>
-            Give the globe a little spin and discover the surprises hidden within. \u2661
+            Give the globe a little spin and discover the surprises hidden within. ♡
           </p>
+          <AnimatePresence><TapHint /></AnimatePresence>
 
-          {/* Progress */}
-          <div className="flex flex-col items-center mt-5 mb-1 gap-2">
+          {/* ── Progress indicator ── */}
+          <motion.div
+            initial={{ opacity:0 }}
+            animate={{ opacity:1 }}
+            transition={{ delay:1 }}
+            className="flex flex-col items-center mt-5 mb-1 gap-2"
+          >
             <p style={{
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontSize: "0.88rem", color: "#49362C", opacity: 0.82,
+              fontFamily:"'EB Garamond', Georgia, serif",
+              fontSize:"0.9rem", color:"#49362C", opacity:0.82,
             }}>
               Three little discoveries await you:{" "}
-              <span style={{ color: "#7B2027", fontWeight: 600 }}>{completedIds.size}/3</span>
+              <motion.span
+                key={completedIds.size}
+                initial={{ scale:1.4 }}
+                animate={{ scale:1 }}
+                transition={{ duration:0.3 }}
+                style={{ color:"#7B2027", fontWeight:700, display:"inline-block" }}
+              >
+                {completedIds.size}/3
+              </motion.span>
             </p>
             <div className="flex gap-3" role="img" aria-label={`${completedIds.size} of 3 discoveries made`}>
-              {[0, 1, 2].map((i) => <RoseIcon key={i} filled={completedIds.has(i)} />)}
+              {[0,1,2].map((i) => (
+                <motion.div
+                  key={i}
+                  initial={false}
+                  animate={completedIds.has(i) ? { scale:[1,1.35,1] } : { scale:1 }}
+                  transition={{ duration:0.4 }}
+                >
+                  <RoseIcon filled={completedIds.has(i)} />
+                </motion.div>
+              ))}
             </div>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
 
-      {/* Discovery card */}
-      <div className="w-full px-2 mt-6">
-        <AnimatePresence>
-          {activeDiscovery && (
-            <DiscoveryCard
-              key={activeDiscovery.id}
-              discovery={activeDiscovery}
-              onClose={() => setActiveMarkerId(null)}
-            />
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Final surprise */}
+      {/* ── Final surprise ── */}
       <AnimatePresence>
         {showFinal && (
-          <div className="w-full px-2 mt-8">
-            <FinalSurprise onResetView={() => { setRotY(0); setRotX(-15); startIdle(); }} />
+          <div className="w-full px-2 mt-10">
+            <FinalSurprise onResetView={() => {
+              rotYRef.current = 0;
+              rotXRef.current = -15;
+              commit();
+              isIdleRef.current = true;
+              startIdle();
+            }} />
           </div>
         )}
       </AnimatePresence>
 
-      {/* Bottom divider */}
+      {/* Bottom floral divider */}
       <FlowerDivider className="mt-12 max-w-xs mx-auto px-4" />
+
+      {/* ── Discovery modal (portal-like fixed overlay) ── */}
+      <AnimatePresence>
+        {activeDiscovery && (
+          <DiscoveryModal
+            key={activeDiscovery.id}
+            discovery={activeDiscovery}
+            onClose={() => setActiveMarkerId(null)}
+          />
+        )}
+      </AnimatePresence>
     </motion.section>
   );
 }
