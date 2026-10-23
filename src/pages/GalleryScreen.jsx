@@ -4,6 +4,7 @@ import { PHOTOS, QUOTES } from "../config/content";
 import { PhotoFrame } from "../components/PhotoFrame";
 import QuoteCard from "../components/QuoteCard";
 import { FlowerDivider, RoseBud } from "../components/RoseSVG";
+import ChibiSticker from "../components/ChibiSticker";
 
 // Alternate tilt values per photo index
 const TILTS = [-2, 1.8, -1.5, 2.2];
@@ -123,6 +124,17 @@ export default function GalleryScreen() {
         {[0, 1].map((i) => (
           <MemoryCard key={PHOTOS[i].id} photo={PHOTOS[i]} index={i} />
         ))}
+
+        {/* Chibi 4: Decorative sticker in the vintage scrapbook gallery */}
+        <div className="flex justify-center my-6 relative z-20">
+          <ChibiSticker
+            src="/images/chibi-4.jpg"
+            alt="girl hugging a cat"
+            width={126}
+            rotate={2}
+            delay={0.2}
+          />
+        </div>
 
         {/* Floral divider */}
         <FlowerDivider className="my-8 max-w-xs mx-auto" />

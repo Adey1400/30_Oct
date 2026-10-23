@@ -5,6 +5,7 @@ import TypewriterText from "../components/TypewriterText";
 import QuoteCard from "../components/QuoteCard";
 import FloatingPetals from "../components/FloatingPetals";
 import { RoseFull, RoseCorner } from "../components/RoseSVG";
+import ChibiSticker from "../components/ChibiSticker";
 
 export default function FinalScreen({ onRestart }) {
   const [showTypewriter, setShowTypewriter] = useState(false);
@@ -136,7 +137,7 @@ export default function FinalScreen({ onRestart }) {
         initial={{ opacity: 0 }}
         animate={typewriterDone ? { opacity: 1 } : {}}
         transition={{ duration: 0.8, delay: 0.3 }}
-        className="relative z-20 text-center mb-10"
+        className="relative z-20 text-center mb-6"
         style={{
           fontFamily: "'Dancing Script', cursive",
           fontSize: "1.1rem",
@@ -146,6 +147,22 @@ export default function FinalScreen({ onRestart }) {
       >
         {FINAL.signoff}
       </motion.p>
+
+      {/* Chibi 6: girl sleeping while hugging a pillow — last cute visual detail */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 10 }}
+        animate={typewriterDone ? { opacity: 1, scale: 1, y: 0 } : {}}
+        transition={{ duration: 0.7, delay: 0.45 }}
+        className="relative z-20 flex justify-center mb-8"
+      >
+        <ChibiSticker
+          src="/images/chibi-6.jpg"
+          alt="girl sleeping while hugging a pillow"
+          width={130}
+          rotate={-2}
+          delay={0}
+        />
+      </motion.div>
 
       {/* Restart button */}
       <motion.button

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { LETTER } from "../config/content";
 import TypewriterText from "../components/TypewriterText";
 import { RoseFull, FlowerDivider } from "../components/RoseSVG";
+import ChibiSticker from "../components/ChibiSticker";
 
 // ── Envelope-open transition ───────────────────────────────
 function EnvelopeOpener({ onDone }) {
@@ -192,8 +193,30 @@ export default function LetterScreen() {
         <ParchmentEdge side="bottom" />
       </motion.article>
 
+      {/* Chibi 1: Beside birthday letter lower corner */}
+      <div className="max-w-sm mx-auto flex justify-end -mt-3 pr-4 relative z-20">
+        <ChibiSticker
+          src="/images/chibi-1.jpg"
+          alt="girl sleeping at her laptop"
+          width={130}
+          rotate={2.5}
+          delay={0.5}
+        />
+      </div>
+
       {/* Floral divider below letter */}
-      <FlowerDivider className="mt-10 max-w-sm mx-auto px-4" />
+      <FlowerDivider className="mt-8 max-w-sm mx-auto px-4" />
+
+      {/* Chibi 2: Playful transition between letter and interactive globe */}
+      <div className="flex justify-center mt-7 mb-2">
+        <ChibiSticker
+          src="/images/chibi-2.jpg"
+          alt="girl eating noodles"
+          width={124}
+          rotate={-2}
+          delay={0.3}
+        />
+      </div>
     </motion.section>
   );
 }
